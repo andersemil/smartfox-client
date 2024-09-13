@@ -1,0 +1,21 @@
+{
+    "name": "com.smartfoxserver.csharpclient",
+    "version": "1.7.2",
+    "displayName": "Smartfox Server 2X Csharp Client",
+    "description": "This is a packaged version of the SFS2X client for Unity",
+    "unity": "2019.4",
+    "documentationUrl": "https://docs2x.smartfoxserver.com",
+    "changelogUrl": "https://www.smartfoxserver.com/download/releaseNotes/SFS2X_API_CSharp.txt",
+    "licensesUrl": "https://www.smartfoxserver.com/buy/sfs2x#p=intro",
+    "dependencies": {
+    },
+    "keywords": [
+        "Smartfox",
+        "SFS2X"
+    ],
+    "author": {
+        "name": "Smartfox Server",
+        "email": "info@smartfoxserver.com",
+        "url": "https://smartfoxserver.com"
+    }
+}
