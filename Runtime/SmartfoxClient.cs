@@ -11,14 +11,17 @@ using Sfs2X.Requests;
 using Sfs2X.Core;
 using Sfs2X.Entities;
 using Sfs2X.Entities.Data;
+using Sfs2X.Entities.Variables;
+using User = Sfs2X.Entities.User;
 
 using Sentry;
-
-using User = Sfs2X.Entities.User;
 
 namespace Smartfox {
 
 	public class SmartfoxClient : MonoBehaviour {
+		[SerializeField]
+		private bool Verbose;
+
 		/// <summary>
 		/// Invoked when connection is unstable or slow, but not disconnected
 		/// </summary>
@@ -41,12 +44,7 @@ namespace Smartfox {
 		/// </summary>
 		public static int LagValue;
 
-		private static SmartFox sfs;
-
-		[SerializeField]
-		private bool Verbose;
-
-		private static User HostUser {
+		public static User HostUser {
 			get {
 				return HostUserList.Count != 0 ? HostUserList [0] : null;
 			}
@@ -60,6 +58,8 @@ namespace Smartfox {
 		private static readonly List<User> HostUserList = new (1);
 
 		public static User MySfsUser { get { return sfs?.MySelf; } }
+
+		private static SmartFox sfs;
 
 		private float lastLagWarningTime;
 
@@ -87,26 +87,12 @@ namespace Smartfox {
 
 		private static MulticastDelegate OnResultDelegate;
 
-#if UNITY_IOS && !UNITY_EDITOR
-	[DllImport ("__Internal")]
-	private static extern void RequestLocalNetworkAccess ();
-
-	void OnLocalNetworkAccessRequested (string IsGranted) {
-		Debug.Log ("Local network access granted: " + IsGranted);
-		if (IsGranted == "True") {
-			_Connect ();
-		} else {
-			ConnectOrJoinFailed (Loc_NoConnectionToServer);
-		}
-	}
-#endif
-
 		void Awake () {
 #if UNITY_WEBPLAYER
-		/*|| UNITY_WEBGL ???*/
-        if (!Security.PrefetchSocketPolicy(SmartfoxHost, SmartfoxTcpPort, 500)) {
-			Debug.LogError("Security Exception. Policy file loading failed!");
-		}
+			/*|| UNITY_WEBGL ???*/
+			if (!Security.PrefetchSocketPolicy(SmartfoxHost, SmartfoxTcpPort, 500)) {
+				Debug.LogError("Security Exception. Policy file loading failed!");
+			}
 #endif
 			Instance = this;
 		}
@@ -152,7 +138,7 @@ namespace Smartfox {
 							if (Verbose) {
 								Debug.Log ("[SmartfoxClient] Sending private message to host: " + msg);
 							}
-							SendHostMessage (msg);
+							Send (msg);
 						}
 					} catch (Exception) {
 						Debug.LogError ("Exception while sending private messages to host. Messages:\n" + string.Join ('\n', MessagesToHost));
@@ -258,9 +244,7 @@ namespace Smartfox {
 					sfs.RemoveEventListener (SFSEvent.USER_EXIT_ROOM, OnUserExitRoom);
 					sfs.RemoveEventListener (SFSEvent.PING_PONG, OnPingPong);
 					if (sfs.IsConnected || sfs.IsConnecting) {
-						if (Verbose) {
-							Debug.Log ("Smartfox disconnecting");
-						}
+						Debug.Log ("Smartfox disconnecting");
 						sfs.Disconnect ();
 					}
 					sfs = null;
@@ -272,8 +256,35 @@ namespace Smartfox {
 		}
 
 		public static void JoinRoom (string roomName, bool asSpectator, Action<Room, bool> callback) {
+			if (sfs == null || !sfs.IsConnected) {
+				Debug.LogError ("SmartfoxClient not connected");
+				return;
+			}
 			OnResultDelegate = callback;
 			sfs.Send (new JoinRoomRequest (roomName, "", null, asSpectator));
+		}
+
+		public static void CreateAndJoinRoom (string roomName, short maxPlayers, short maxSpectators, List<RoomVariable> roomVariables) {
+			if (sfs == null || !sfs.IsConnected) {
+				Debug.LogError ("SmartfoxClient not connected");
+				return;
+			}
+			var roomSettings = new RoomSettings (roomName) {
+				IsGame = true,
+				MaxUsers = maxPlayers,
+				MaxSpectators = maxSpectators
+			};
+			roomSettings.Variables = roomVariables;
+			if (Debug.isDebugBuild) {
+				roomSettings.Variables.Add (new SFSRoomVariable ("IsTest", true));
+			}
+			roomSettings.Permissions = new RoomPermissions {
+				AllowResizing = true,
+				AllowNameChange = false,
+				AllowPasswordStateChange = true,
+				AllowPublicMessages = true
+			};
+			sfs.Send (new CreateRoomRequest (roomSettings, true));
 		}
 
 		public static void LeaveRoom (Room room) {
@@ -297,8 +308,12 @@ namespace Smartfox {
 		}
 
 		public static void Login (string name, Action<string> callback) {
+			if (sfs == null || !sfs.IsConnected) {
+				Debug.LogError ("SmartfoxClient not connected");
+				return;
+			}
 			OnResultDelegate = callback;
-			sfs?.Send (new LoginRequest (name ?? string.Empty));
+			sfs.Send (new LoginRequest (name ?? string.Empty));
 		}
 
 		private void OnConnectionRetry (BaseEvent evt) {
@@ -379,6 +394,21 @@ namespace Smartfox {
 
 		private void OnRoomJoin (BaseEvent evt) {
 			var room = (Room)evt.Params ["room"];
+
+			//Find game admin, if already joined
+			if (room.ContainsVariable ("HostId")) {
+				int hostId = room.GetVariable ("HostId").GetIntValue ();
+				foreach (User user in room.UserList) {
+					if (user.Id == hostId) {
+						if (Verbose) {
+							Debug.Log ("Found GameHost Id=" + user.Id);
+						}
+						HostUser = user;
+						break;
+					}
+				}
+			}
+
 			((Action<Room, bool>)OnResultDelegate)?.Invoke (room, false);
 		}
 
@@ -395,12 +425,19 @@ namespace Smartfox {
 			ISFSObject dataObj = (SFSObject)evt.Params ["message"];
 			SFSUser sender = (SFSUser)evt.Params ["sender"];
 
+			if (Verbose) {
+				Debug.Log ($"Smartfox received object message from {sender.Name}: {dataObj.GetDump ()}");
+			}
 			OnObjectMessage.Invoke (dataObj, sender);
 		}
 
 		private void _OnPrivateMessage (BaseEvent evt) {
 			string message = (string)evt.Params ["message"];
 			SFSUser sender = (SFSUser)evt.Params ["sender"];
+
+			if (Verbose) {
+				Debug.Log ($"Smartfox received private message from {sender.Name}: {message}");
+			}
 			OnPrivateMessage.Invoke (message, sender);
 		}
 
@@ -433,18 +470,31 @@ namespace Smartfox {
 			}
 		}
 
-		public static void SendHostMessage (string s) {
-			if (sfs != null && HostUser != null) {
-				if (Instance.Verbose) {
-					Debug.LogFormat ("SendHostMessage {0}: {1}", HostUser.Id, s);
-				}
-				sfs.Send (new PrivateMessageRequest (s, HostUser.Id));
+		public static void Broadcast (ISFSObject dataObj, bool toPlayers = true, bool toSpectators = false) {
+			if (toPlayers && toSpectators) {
+				sfs.Send (new ObjectMessageRequest (dataObj, sfs.LastJoinedRoom));
+			} else {
+				sfs.Send (new ObjectMessageRequest (dataObj, sfs.LastJoinedRoom, toPlayers ? sfs.LastJoinedRoom.PlayerList : sfs.LastJoinedRoom.SpectatorList));
 			}
 		}
 
-		public static void Send (ISFSObject dataObj) {
-			if (sfs != null && HostUser != null) {
-				sfs.Send (new ObjectMessageRequest (dataObj, sfs.LastJoinedRoom, HostUserList));
+		public static void Send (string s, User user = null) {
+			if (sfs != null) {
+				if (user == null)
+					user = HostUser;
+				if (Instance.Verbose) {
+					Debug.LogFormat ("Send {0}: {1}", user.Id, s);
+				}
+				sfs.Send (new PrivateMessageRequest (s, user.Id));
+			}
+		}
+
+		/// <summary>
+        /// Send object message to user. If no user specified, then send to game host
+        /// </summary>
+		public static void Send (ISFSObject dataObj, User user = null) {
+			if (sfs != null) {
+				sfs.Send (new ObjectMessageRequest (dataObj, sfs.LastJoinedRoom, user == null ? HostUserList : new List<User> { user }));
 			}
 		}
 
@@ -474,10 +524,6 @@ namespace Smartfox {
 
 		public static void Send (string varName, string value) {
 			ObjectMessageToHost.PutUtfString (varName, value);
-		}
-
-		public static void SendToUser (string message, int userId) {
-			sfs.Send (new PrivateMessageRequest (message, userId));
 		}
 
 		public static void Disconnect () {
