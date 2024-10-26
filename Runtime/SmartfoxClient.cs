@@ -14,8 +14,6 @@ using Sfs2X.Entities.Data;
 using Sfs2X.Entities.Variables;
 using User = Sfs2X.Entities.User;
 
-using Sentry;
-
 namespace Smartfox {
 
 	public class SmartfoxClient : MonoBehaviour {
@@ -191,8 +189,6 @@ namespace Smartfox {
 			var msg = $"Connecting to server at {cfg.Host}:{cfg.Port} zone={cfg.Zone}";
 			if (Instance.Verbose) {
 				Debug.Log (msg);
-			} else {
-				SentrySdk.AddBreadcrumb (msg);
 			}
 
 			// Connect to SFS2X
@@ -208,6 +204,7 @@ namespace Smartfox {
 			sfs.AddEventListener (SFSEvent.LOGIN_ERROR, OnLoginError);
 			sfs.AddEventListener (SFSEvent.ROOM_JOIN, OnRoomJoin);
 			sfs.AddEventListener (SFSEvent.ROOM_JOIN_ERROR, OnRoomJoinError);
+			sfs.AddEventListener (SFSEvent.ROOM_CREATION_ERROR, OnRoomCreationError);
 			sfs.AddEventListener (SFSEvent.OBJECT_MESSAGE, _OnObjectMessage);
 			sfs.AddEventListener (SFSEvent.PRIVATE_MESSAGE, _OnPrivateMessage);
 			//sfs.AddEventListener(SFSEvent.USER_VARIABLES_UPDATE, OnUserVariableUpdate);
@@ -237,6 +234,7 @@ namespace Smartfox {
 					sfs.RemoveEventListener (SFSEvent.LOGIN_ERROR, OnLoginError);
 					sfs.RemoveEventListener (SFSEvent.ROOM_JOIN, OnRoomJoin);
 					sfs.RemoveEventListener (SFSEvent.ROOM_JOIN_ERROR, OnRoomJoinError);
+					sfs.RemoveEventListener (SFSEvent.ROOM_CREATION_ERROR, OnRoomCreationError);
 					sfs.RemoveEventListener (SFSEvent.OBJECT_MESSAGE, _OnObjectMessage);
 					sfs.RemoveEventListener (SFSEvent.PRIVATE_MESSAGE, _OnPrivateMessage);
 					//sfs.RemoveEventListener(SFSEvent.USER_VARIABLES_UPDATE, OnUserVariableUpdate);
@@ -264,15 +262,15 @@ namespace Smartfox {
 			sfs.Send (new JoinRoomRequest (roomName, "", null, asSpectator));
 		}
 
-		public static void CreateAndJoinRoom (string roomName, short maxPlayers, short maxSpectators, List<RoomVariable> roomVariables) {
+		public static void CreateAndJoinRoom (string roomName, int maxPlayers, int maxSpectators, List<RoomVariable> roomVariables, Action<Room, bool> callback) {
 			if (sfs == null || !sfs.IsConnected) {
 				Debug.LogError ("SmartfoxClient not connected");
 				return;
 			}
 			var roomSettings = new RoomSettings (roomName) {
 				IsGame = true,
-				MaxUsers = maxPlayers,
-				MaxSpectators = maxSpectators
+				MaxUsers = (short)maxPlayers,
+				MaxSpectators = (short)maxSpectators
 			};
 			roomSettings.Variables = roomVariables;
 			if (Debug.isDebugBuild) {
@@ -284,6 +282,7 @@ namespace Smartfox {
 				AllowPasswordStateChange = true,
 				AllowPublicMessages = true
 			};
+			OnResultDelegate = callback;
 			sfs.Send (new CreateRoomRequest (roomSettings, true));
 		}
 
@@ -421,6 +420,17 @@ namespace Smartfox {
 			((Action<Room, bool>)OnResultDelegate)?.Invoke (null, roomIsFull);
 		}
 
+		private void OnRoomCreationError (BaseEvent evt) {
+			var errorMessage = (string)evt.Params ["errorMessage"];
+			var roomAlreadyExists = (short)evt.Params ["errorCode"] == 12;
+			if (roomAlreadyExists) {
+				Debug.LogWarning ("SFS Room already exists: " + errorMessage);
+			} else {
+				Debug.LogError ("SFS Room creation failed: " + errorMessage);
+			}
+			((Action<Room, bool>)OnResultDelegate)?.Invoke (null, roomAlreadyExists);
+		}
+
 		private void _OnObjectMessage (BaseEvent evt) {
 			ISFSObject dataObj = (SFSObject)evt.Params ["message"];
 			SFSUser sender = (SFSUser)evt.Params ["sender"];
@@ -493,9 +503,7 @@ namespace Smartfox {
         /// Send object message to user. If no user specified, then send to game host
         /// </summary>
 		public static void Send (ISFSObject dataObj, User user = null) {
-			if (sfs != null) {
-				sfs.Send (new ObjectMessageRequest (dataObj, sfs.LastJoinedRoom, user == null ? HostUserList : new List<User> { user }));
-			}
+			sfs.Send (new ObjectMessageRequest (dataObj, sfs.LastJoinedRoom, user == null ? HostUserList : new List<User> { user }));
 		}
 
 		public static void Send (string varName, bool value) {
