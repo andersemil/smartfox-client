@@ -17,8 +17,7 @@ using User = Sfs2X.Entities.User;
 namespace Smartfox {
 
 	public class SmartfoxClient : MonoBehaviour {
-		[SerializeField]
-		private bool Verbose;
+		public bool Verbose;
 
 		/// <summary>
 		/// Invoked when connection is unstable or slow, but not disconnected
@@ -41,6 +40,11 @@ namespace Smartfox {
 		/// The current lag from client to server
 		/// </summary>
 		public static int LagValue;
+
+		/// <summary>
+        /// True while we are experiencing a poor connection to the smartfox server
+        /// </summary>
+		public static bool PoorConnection;
 
 		public static User HostUser {
 			get {
@@ -151,7 +155,13 @@ namespace Smartfox {
 				if (t >= NextCheckReachableTime) {
 					NextCheckReachableTime = t + 1f;
 					if (Application.internetReachability == NetworkReachability.NotReachable) {
-						OnPoorConnection.Invoke ();
+						if (!PoorConnection) {
+							PoorConnection = true;
+							OnPoorConnection?.Invoke ();
+						}
+					} else if (PoorConnection) {
+						PoorConnection = false;
+						OnConnectionResumed?.Invoke ();
 					}
 				}
 			}
@@ -319,14 +329,14 @@ namespace Smartfox {
 			if (Verbose) {
 				Debug.LogWarning ("SFS Connection retry ...");
 			}
-			OnPoorConnection.Invoke ();
+			OnPoorConnection?.Invoke ();
 		}
 
 		private void OnConnectionResume (BaseEvent evt) {
 			if (Verbose) {
 				Debug.Log ("SFS Connection resumed!");
 			}
-			OnConnectionResumed.Invoke ();
+			OnConnectionResumed?.Invoke ();
 		}
 
 		private void OnPingPong (BaseEvent evt) {
@@ -334,15 +344,21 @@ namespace Smartfox {
 				return;
 			}
 			LagValue = (int)evt.Params ["lagValue"];
-			Debug.LogFormat ("[SmartfoxClient] LagMonitor: {0} ms", LagValue);
+			if (Verbose) {
+				Debug.LogFormat ("[SmartfoxClient] LagMonitor: {0} ms", LagValue);
+			}
 
 			if (LagValue >= LagWarningThreshold) {
 				if ((int)(Time.realtimeSinceStartup - lastLagWarningTime) >= LagWarningInterval) {
 					lastLagWarningTime = Time.realtimeSinceStartup;
-					OnPoorConnection.Invoke ();
+					if (!PoorConnection) {
+						PoorConnection = true;
+						OnPoorConnection?.Invoke ();
+					}
 				}
-			} else {
-				OnConnectionResumed.Invoke ();
+			} else if (PoorConnection) {
+				PoorConnection = false;
+				OnConnectionResumed?.Invoke ();
 			}
 			//Analytics.LogEvent ("Lag", Analytics.ParameterLevelName, GameType, Analytics.ParameterValue, lagValue);
 		}
@@ -359,7 +375,7 @@ namespace Smartfox {
 			} else if (Verbose) {
 				Debug.Log ("Client was disconnected.");
 			}
-			OnDisconnected.Invoke ();
+			OnDisconnected?.Invoke ();
 		}
 
 		private void OnLogin (BaseEvent evt) {
@@ -476,7 +492,7 @@ namespace Smartfox {
 			User user = (User)evt.Params ["user"];
 			Room room = (Room)evt.Params ["room"];
 			if (user != sfs.MySelf) {
-				OnUserLeftRoom.Invoke (user, room);
+				OnUserLeftRoom?.Invoke (user, room);
 			}
 		}
 
