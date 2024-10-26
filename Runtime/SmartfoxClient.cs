@@ -557,6 +557,31 @@ namespace Smartfox {
 			ObjectMessageToHost.PutUtfString (varName, value);
 		}
 
+		public static void KickUser (User user) {
+			sfs.Send (new KickUserRequest (user.Id));
+		}
+
+		public static void StopGameRoomJoins () {
+			try {
+				//We stop further users from joining by setting the room capacity to current number of users
+				sfs.Send (new ChangeRoomCapacityRequest (sfs.LastJoinedRoom, sfs.LastJoinedRoom.UserCount, sfs.LastJoinedRoom.MaxSpectators));
+			} catch (Exception e) {
+				Debug.LogWarningFormat ("SFS Failed to fix room capacity at {0}: {1}", sfs.LastJoinedRoom.UserCount, e.Message);
+			}
+		}
+
+		public static void UpdateRoomCapacity (int maxPlayers, int maxSpectators) {
+			if (sfs != null) {
+				try {
+					//We stop further users from joining by setting the room capacity to current number of users
+					sfs.Send (new ChangeRoomCapacityRequest (sfs.LastJoinedRoom, maxPlayers, maxSpectators));
+				} catch (Exception e) {
+					Debug.LogWarningFormat ("SFS Failed to fix room capacity at {0}: {1}", sfs.LastJoinedRoom.UserCount, e.Message);
+					throw;
+				}
+			}
+		}
+
 		public static void Disconnect () {
 			try {
 				if (Instance != null) {
