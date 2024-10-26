@@ -99,6 +99,11 @@ namespace Smartfox {
 			Instance = this;
 		}
 
+		public void InitEvents () {
+			OnObjectMessage = new UnityEvent<ISFSObject, User> ();
+			OnPrivateMessage = new UnityEvent<string, User> ();
+		}
+
 		void Update () {
 			if (sfs != null) {
 #if false
@@ -122,30 +127,32 @@ namespace Smartfox {
 }"), 0);
 				}
 #endif
-				var om2h = ObjectMessageToHost;
-				if (om2h.Size () != 0) {
-					if (Verbose) {
-						Debug.Log ("[SmartfoxClient] Sending to host: " + om2h.GetDump ());
-					}
-					ObjectMessageToHost = new SFSObject ();
-					try {
-						Send (om2h);
-					} catch (Exception) {
-						Debug.LogError ("Exception while sending object message to host. Dump: " + om2h.GetDump ());
-					}
-				}
-				if (MessagesToHost.Count != 0) {
-					try {
-						foreach (var msg in MessagesToHost) {
-							if (Verbose) {
-								Debug.Log ("[SmartfoxClient] Sending private message to host: " + msg);
-							}
-							Send (msg);
+				if (sfs.IsConnected && HostUser != null) {
+					var om2h = ObjectMessageToHost;
+					if (om2h.Size () != 0) {
+						if (Verbose) {
+							Debug.Log ("[SmartfoxClient] Sending to host: " + om2h.GetDump ());
 						}
-					} catch (Exception) {
-						Debug.LogError ("Exception while sending private messages to host. Messages:\n" + string.Join ('\n', MessagesToHost));
+						ObjectMessageToHost = new SFSObject ();
+						try {
+							Send (om2h);
+						} catch (Exception) {
+							Debug.LogError ("Exception while sending object message to host. Dump: " + om2h.GetDump ());
+						}
 					}
-					MessagesToHost.Clear ();
+					if (MessagesToHost.Count != 0) {
+						try {
+							foreach (var msg in MessagesToHost) {
+								if (Verbose) {
+									Debug.Log ("[SmartfoxClient] Sending private message to host: " + msg);
+								}
+								Send (msg);
+							}
+						} catch (Exception) {
+							Debug.LogError ("Exception while sending private messages to host. Messages:\n" + string.Join ('\n', MessagesToHost));
+						}
+						MessagesToHost.Clear ();
+					}
 				}
 
 				sfs.ProcessEvents ();
