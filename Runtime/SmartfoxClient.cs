@@ -504,10 +504,12 @@ namespace Smartfox {
 		}
 
 		public static void Broadcast (ISFSObject dataObj, bool toPlayers = true, bool toSpectators = false) {
-			if (toPlayers && toSpectators) {
-				sfs.Send (new ObjectMessageRequest (dataObj, sfs.LastJoinedRoom));
-			} else {
-				sfs.Send (new ObjectMessageRequest (dataObj, sfs.LastJoinedRoom, toPlayers ? sfs.LastJoinedRoom.PlayerList : sfs.LastJoinedRoom.SpectatorList));
+			if (sfs != null) {
+				if (toPlayers && toSpectators) {
+					sfs.Send (new ObjectMessageRequest (dataObj, sfs.LastJoinedRoom));
+				} else {
+					sfs.Send (new ObjectMessageRequest (dataObj, sfs.LastJoinedRoom, toPlayers ? sfs.LastJoinedRoom.PlayerList : sfs.LastJoinedRoom.SpectatorList));
+				}
 			}
 		}
 
