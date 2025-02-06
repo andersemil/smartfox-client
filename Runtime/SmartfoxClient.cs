@@ -228,6 +228,8 @@ namespace Smartfox {
 			sfs.AddEventListener (SFSEvent.USER_ENTER_ROOM, OnUserEnterRoom);
 			sfs.AddEventListener (SFSEvent.USER_EXIT_ROOM, OnUserExitRoom);
 			sfs.AddEventListener (SFSEvent.PING_PONG, OnPingPong);
+			sfs.AddEventListener (SFSEvent.ROOM_CAPACITY_CHANGE, OnRoomCapacityChanged);
+			sfs.AddEventListener (SFSEvent.ROOM_CAPACITY_CHANGE_ERROR, OnRoomCapacityError);
 
 			sfs.Logger.EnableEventDispatching = true;
 			sfs.Logger.LoggingLevel = LogLevel.WARN;
@@ -258,6 +260,8 @@ namespace Smartfox {
 					sfs.RemoveEventListener (SFSEvent.USER_ENTER_ROOM, OnUserEnterRoom);
 					sfs.RemoveEventListener (SFSEvent.USER_EXIT_ROOM, OnUserExitRoom);
 					sfs.RemoveEventListener (SFSEvent.PING_PONG, OnPingPong);
+					sfs.RemoveEventListener (SFSEvent.ROOM_CAPACITY_CHANGE, OnRoomCapacityChanged);
+					sfs.RemoveEventListener (SFSEvent.ROOM_CAPACITY_CHANGE_ERROR, OnRoomCapacityError);
 					if (sfs.IsConnected || sfs.IsConnecting) {
 						Debug.Log ("Smartfox disconnecting");
 						sfs.Disconnect ();
@@ -452,6 +456,17 @@ namespace Smartfox {
 				Debug.LogError ("SFS Room creation failed: " + errorMessage);
 			}
 			((Action<Room, bool>)OnResultDelegate)?.Invoke (null, roomAlreadyExists);
+		}
+
+		private void OnRoomCapacityChanged (BaseEvent evt) {
+			if (Verbose) {
+				Debug.Log ("SFS Room capacity changed");
+			}
+		}
+
+		private void OnRoomCapacityError (BaseEvent evt) {
+			var errorMessage = (string)evt.Params ["errorMessage"];
+			Debug.LogWarning ("SFS Room capacity could not be changed: " + errorMessage);
 		}
 
 		private void _OnObjectMessage (BaseEvent evt) {
