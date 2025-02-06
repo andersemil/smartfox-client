@@ -439,9 +439,7 @@ namespace Smartfox {
 		}
 
 		private void OnRoomJoinError (BaseEvent evt) {
-			if (Verbose) {
-				Debug.LogError ("Room join failed: " + (string)evt.Params ["errorMessage"]);
-			}
+			Debug.LogError ("Room join failed: " + (string)evt.Params ["errorMessage"]);
 
 			var roomIsFull = (short)evt.Params ["errorCode"] == 20;
 			((Action<Room, bool>)OnResultDelegate)?.Invoke (null, roomIsFull);
