@@ -17,6 +17,8 @@ using User = Sfs2X.Entities.User;
 namespace Smartfox {
 
 	public class SmartfoxClient : MonoBehaviour {
+		const string ENV_SMARTFOX_LOGLEVEL = "SMARTFOX_LOGLEVEL";
+
 		public bool Verbose;
 
 		/// <summary>
@@ -232,13 +234,23 @@ namespace Smartfox {
 			sfs.AddEventListener (SFSEvent.ROOM_CAPACITY_CHANGE_ERROR, OnRoomCapacityError);
 
 			sfs.Logger.EnableEventDispatching = true;
-			sfs.Logger.LoggingLevel = LogLevel.WARN;
+			if (!Enum.TryParse (Environment.GetEnvironmentVariable (ENV_SMARTFOX_LOGLEVEL), out LogLevel level)) {
+				level = LogLevel.WARN;
+			}
+			sfs.Logger.LoggingLevel = level;
+			sfs.AddLogListener (LogLevel.DEBUG, OnLogMessage);
+			sfs.AddLogListener (LogLevel.INFO, OnLogMessage);
 			sfs.AddLogListener (LogLevel.WARN, OnWarnLogMessage);
+		}
+
+		void OnLogMessage (BaseEvent evt) {
+			string message = (string)evt.Params ["message"];
+			Debug.Log ($"[SFS2X] {message}");
 		}
 
 		void OnWarnLogMessage (BaseEvent evt) {
 			string message = (string)evt.Params ["message"];
-			Debug.LogWarningFormat ("[SFS2X] WARN {0}", message);
+			Debug.LogWarning ($"[SFS2X] WARN {message}");
 		}
 
 		private void Reset () {
