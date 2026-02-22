@@ -612,6 +612,11 @@ namespace Smartfox {
 		public static void Disconnect () {
 			try {
 				if (Instance != null) {
+					if (sfs != null && sfs.IsConnected) {
+						sfs.Send (new LeaveRoomRequest (sfs.LastJoinedRoom));
+						sfs.ProcessEvents ();
+						Debug.Log ("Left room.");
+					}
 					Instance.Reset ();
 				}
 			} catch (Exception ex) {
