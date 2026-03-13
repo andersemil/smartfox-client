@@ -59,6 +59,14 @@ namespace Smartfox {
 				}
 			}
 		}
+
+		public static bool IsConnected {
+			get {
+				return sfs != null && sfs.IsConnected;
+			}
+		}
+
+
 		private static readonly List<User> HostUserList = new (1);
 
 		public static User MySfsUser { get { return sfs?.MySelf; } }
