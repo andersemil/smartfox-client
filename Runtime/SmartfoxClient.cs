@@ -205,9 +205,9 @@ namespace Smartfox {
 
 			Instance.SubscribeEvents ();
 
-			var msg = $"Connecting to server at {cfg.Host}:{cfg.Port} zone={cfg.Zone}";
 			if (Instance.Verbose) {
-				Debug.Log (msg);
+                var msg = $"Connecting to server at {cfg.Host}:{cfg.Port} zone={cfg.Zone}";
+                Debug.Log (msg);
 			}
 
 			// Connect to SFS2X
@@ -553,6 +553,9 @@ namespace Smartfox {
         /// Send object message to user. If no user specified, then send to game host
         /// </summary>
 		public static void Send (ISFSObject dataObj, User user = null) {
+			if (Instance.Verbose) {
+				Debug.Log ("[SmartfoxClient] Sending object message " + dataObj.GetDump ());
+			}
 			sfs.Send (new ObjectMessageRequest (dataObj, sfs.LastJoinedRoom, user == null ? HostUserList : new List<User> { user }));
 		}
 
