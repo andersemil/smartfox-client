@@ -537,12 +537,14 @@ namespace Smartfox {
 		}
 
 		public static void Broadcast (ISFSObject dataObj, bool toPlayers = true, bool toSpectators = false) {
-			if (sfs != null) {
-				if (toPlayers && toSpectators) {
-					sfs.Send (new ObjectMessageRequest (dataObj, sfs.LastJoinedRoom));
-				} else {
-					sfs.Send (new ObjectMessageRequest (dataObj, sfs.LastJoinedRoom, toPlayers ? sfs.LastJoinedRoom.PlayerList : sfs.LastJoinedRoom.SpectatorList));
-				}
+			if (sfs?.LastJoinedRoom == null) {
+				Debug.LogError ("SmartfoxClient: No room to broadcast in: " + dataObj.GetDump());
+				return;
+			}
+			if (toPlayers && toSpectators) {
+				sfs.Send (new ObjectMessageRequest (dataObj, sfs.LastJoinedRoom));
+			} else {
+				sfs.Send (new ObjectMessageRequest (dataObj, sfs.LastJoinedRoom, toPlayers ? sfs.LastJoinedRoom.PlayerList : sfs.LastJoinedRoom.SpectatorList));
 			}
 		}
 
@@ -623,7 +625,7 @@ namespace Smartfox {
 		public static void Disconnect () {
 			try {
 				if (Instance != null) {
-					if (sfs != null && sfs.IsConnected) {
+					if (sfs?.LastJoinedRoom != null && sfs.IsConnected) {
 						sfs.Send (new LeaveRoomRequest (sfs.LastJoinedRoom));
 						sfs.ProcessEvents ();
 						Debug.Log ("Left room.");
